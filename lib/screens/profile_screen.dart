@@ -36,13 +36,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             .doc(currentUser!.uid)
             .get();
 
-        if (userDoc.exists) {
+        if (userDoc.exists && mounted) {
           setState(() {
             userData = userDoc.data() as Map<String, dynamic>;
             resumeFileName = userData?['resumeFileName'];
             isLoading = false;
           });
-        } else {
+        } else if (mounted) {
           setState(() {
             isLoading = false;
           });
@@ -50,9 +50,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       print('Error fetching user data: $e');
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -90,33 +92,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'fileSize': fileSize,
             });
 
-        setState(() {
-          isUploadingResume = false;
-          resumeFileName = result.files.single.name;
-        });
+        if (mounted) {
+          setState(() {
+            isUploadingResume = false;
+            resumeFileName = result.files.single.name;
+          });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Resume uploaded successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Resume uploaded successfully'),
+              backgroundColor: const Color(0xFF10B981), // Emerald 500
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
 
         // Refresh user data
         await fetchUserData();
       }
     } catch (e) {
-      setState(() {
-        isUploadingResume = false;
-      });
+      if (mounted) {
+        setState(() {
+          isUploadingResume = false;
+        });
 
-      print('Error uploading resume: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error uploading resume: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading resume: $e'),
+            backgroundColor: const Color(0xFFEF4444), // Red 500
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
   }
 
@@ -124,19 +133,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Resume'),
-        content: const Text('Are you sure you want to delete your resume?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Resume', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Are you sure you want to delete your resume?',
+          style: TextStyle(color: Color(0xFF64748B)), // Slate 500
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await performDelete();
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -165,74 +178,105 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'fileSize': '',
           });
 
-      setState(() {
-        isUploadingResume = false;
-        resumeFileName = null;
-      });
+      if (mounted) {
+        setState(() {
+          isUploadingResume = false;
+          resumeFileName = null;
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Resume deleted successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Resume deleted successfully'),
+            backgroundColor: const Color(0xFF10B981), // Emerald 500
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
 
       // Refresh user data
       await fetchUserData();
     } catch (e) {
-      setState(() {
-        isUploadingResume = false;
-      });
+      if (mounted) {
+        setState(() {
+          isUploadingResume = false;
+        });
 
-      print('Error deleting resume: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error deleting resume: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting resume: $e'),
+            backgroundColor: const Color(0xFFEF4444), // Red 500
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffECECF1),
+      backgroundColor: const Color(0xFFF8FAFC), // Slate 50
 
-      body: SafeArea(
-        child: Column(
-          children: [
-            /// HEADER
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 15, 10, 20),
-
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.blue, Colors.purple]),
+      body: Column(
+        children: [
+          /// MODERN HEADER
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 20,
+              right: 20,
+              bottom: 30,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF6366F1), // Indigo 500
+                  Color(0xFF4F46E5), // Indigo 600
+                ],
               ),
-
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(32),
+                bottomRight: Radius.circular(32),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                
+                /// BACK BUTTON
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
                   ),
-
-                  const Text(
-                    "My Profile",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                    onPressed: () => Navigator.pop(context),
                   ),
+                ),
 
-                  /// SETTINGS NAVIGATION
-                  IconButton(
-                    icon: const Icon(Icons.settings, color: Colors.white),
+                const Text(
+                  "My Profile",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                /// SETTINGS NAVIGATION
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.settings_outlined, color: Colors.white, size: 22),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -242,282 +286,352 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-            const SizedBox(height: 20),
+          const SizedBox(height: 20),
 
-            /// PROFILE CONTENT
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        children: [
-                          /// PROFILE CARD
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Column(
-                              children: [
-                                CircleAvatar(
-                                  radius: 45,
-                                  backgroundColor: Colors.blue.shade100,
-                                  child: Text(
-                                    (userData?['name'] ?? 'User')[0]
-                                        .toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue,
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 10),
-
-                                Text(
-                                  userData?['name'] ?? 'User',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-
-                                Text(userData?['rollNumber'] ?? 'Roll Number'),
-
-                                Text(
-                                  userData?['email'] ??
-                                      currentUser?.email ??
-                                      'email@student.edu',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-
-                                const SizedBox(height: 15),
-
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 15,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.blue.shade200,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Role: ${userData?['role'] ?? 'Student'}',
-                                    style: TextStyle(
-                                      color: Colors.blue.shade700,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+          /// PROFILE CONTENT
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Column(
+                      children: [
+                        
+                        /// PROFILE CARD
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              )
+                            ],
+                            border: Border.all(color: const Color(0xFFF1F5F9)),
                           ),
-
-                          const SizedBox(height: 20),
-
-                          /// RESUME SECTION
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.description,
-                                      color: Colors.deepOrange.shade600,
-                                      size: 28,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Resume',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
+                          child: Column(
+                            children: [
+                              
+                              // MODERN AVATAR
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFFEEF2FF), // Indigo 50
+                                  border: Border.all(color: Colors.white, width: 4),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF4F46E5).withOpacity(0.15),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 5),
+                                    )
+                                  ]
                                 ),
+                                child: Center(
+                                  child: Text(
+                                    (userData?['name'] ?? 'U')[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4F46E5), // Indigo 600
+                                    ),
+                                  ),
+                                ),
+                              ),
 
-                                const SizedBox(height: 15),
+                              const SizedBox(height: 16),
 
-                                if (resumeFileName == null ||
-                                    resumeFileName!.isEmpty)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(30),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.orange.shade200,
-                                        width: 2,
+                              Text(
+                                userData?['name'] ?? 'User Name',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A), // Slate 900
+                                ),
+                              ),
+
+                              const SizedBox(height: 4),
+
+                              Text(
+                                userData?['rollNumber'] ?? 'Roll Number',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF475569), // Slate 600
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 4),
+
+                              Text(
+                                userData?['email'] ?? currentUser?.email ?? 'email@student.edu',
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8), // Slate 400
+                                  fontSize: 14,
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              // ROLE BADGE
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF), // Indigo 50
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Role: ${userData?['role'] ?? 'Student'}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF4F46E5), // Indigo 600
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        /// RESUME SECTION
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              )
+                            ],
+                            border: Border.all(color: const Color(0xFFF1F5F9)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.description_outlined,
+                                    color: Color(0xFF3B82F6), // Blue 500
+                                    size: 24,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Resume',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              if (resumeFileName == null || resumeFileName!.isEmpty)
+                                // EMPTY STATE
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(32),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC), // Slate 50
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0), // Slate 200
+                                      width: 1.5,
+                                      // Ideally use a dashed border package here, but solid is fine for basic Flutter
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.05),
+                                              blurRadius: 10,
+                                            )
+                                          ]
+                                        ),
+                                        child: const Icon(
+                                          Icons.cloud_upload_outlined,
+                                          color: Color(0xFF94A3B8), // Slate 400
+                                          size: 32,
+                                        ),
                                       ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.cloud_upload,
-                                          color: Colors.orange.shade600,
-                                          size: 48,
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'No Resume Uploaded',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1E293B), // Slate 800
                                         ),
-                                        const SizedBox(height: 10),
-                                        const Text(
-                                          'No Resume Uploaded',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Text(
-                                          'Upload a PDF resume to apply for jobs',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(15),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.green.shade200,
                                       ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Upload a PDF resume to apply for jobs',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Color(0xFF64748B), // Slate 500
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                // UPLOADED STATE
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFECFDF5), // Emerald 50
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFA7F3D0), // Emerald 200
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(
+                                          Icons.picture_as_pdf_rounded,
+                                          color: Color(0xFF10B981), // Emerald 500
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Icon(
-                                              Icons.check_circle,
-                                              color: Colors.green.shade600,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    resumeFileName!,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  if (userData?['fileSize'] !=
-                                                          null &&
-                                                      userData?['fileSize']!
-                                                          .isNotEmpty)
-                                                    Text(
-                                                      'Size: ${userData?['fileSize']}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade600,
-                                                      ),
-                                                    ),
-                                                ],
+                                            Text(
+                                              resumeFileName!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF0F172A),
                                               ),
                                             ),
+                                            if (userData?['fileSize'] != null && userData?['fileSize']!.isNotEmpty)
+                                              ...[
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  '${userData?['fileSize']} • PDF document',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Color(0xFF64748B),
+                                                  ),
+                                                ),
+                                              ]
                                           ],
                                         ),
-                                      ],
-                                    ),
-                                  ),
-
-                                const SizedBox(height: 15),
-
-                                /// UPLOAD/REPLACE BUTTON
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.cloud_upload),
-                                    label: Text(
-                                      resumeFileName == null ||
-                                              resumeFileName!.isEmpty
-                                          ? 'Upload Resume'
-                                          : 'Replace Resume',
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.deepOrange.shade600,
-                                      padding: const EdgeInsets.all(12),
-                                    ),
-                                    onPressed: isUploadingResume
-                                        ? null
-                                        : uploadResume,
+                                      ),
+                                    ],
                                   ),
                                 ),
 
-                                if (resumeFileName != null &&
-                                    resumeFileName!.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 10),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton.icon(
-                                        icon: const Icon(
-                                          Icons.delete_outline,
-                                          color: Colors.red,
-                                        ),
-                                        label: const Text(
-                                          'Delete Resume',
-                                          style: TextStyle(color: Colors.red),
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(
-                                            color: Colors.red,
-                                          ),
-                                          padding: const EdgeInsets.all(12),
-                                        ),
-                                        onPressed: isUploadingResume
-                                            ? null
-                                            : deleteResume,
-                                      ),
+                              const SizedBox(height: 24),
+
+                              /// UPLOAD/REPLACE BUTTON
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton.icon(
+                                  icon: isUploadingResume 
+                                    ? const SizedBox(
+                                        width: 20, 
+                                        height: 20, 
+                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                                      )
+                                    : const Icon(Icons.cloud_upload_outlined, size: 20),
+                                  label: Text(
+                                    isUploadingResume 
+                                      ? 'Processing...' 
+                                      : (resumeFileName == null || resumeFileName!.isEmpty ? 'Upload Resume' : 'Replace Resume'),
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF4F46E5), // Indigo 600
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                              ],
-                            ),
-                          ),
+                                  onPressed: isUploadingResume ? null : uploadResume,
+                                ),
+                              ),
 
-                          const SizedBox(height: 20),
-                        ],
-                      ),
+                              if (resumeFileName != null && resumeFileName!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 50,
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Color(0xFFE11D48), // Rose 600
+                                        size: 20,
+                                      ),
+                                      label: const Text(
+                                        'Delete Resume',
+                                        style: TextStyle(
+                                          color: Color(0xFFE11D48),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Color(0xFFFECDD3)), // Rose 200
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        backgroundColor: const Color(0xFFFFF1F2), // Rose 50
+                                      ),
+                                      onPressed: isUploadingResume ? null : deleteResume,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 40),
+                      ],
                     ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
     );
   }

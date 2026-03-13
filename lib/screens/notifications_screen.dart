@@ -3,91 +3,106 @@ import 'package:flutter/material.dart';
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
-  Widget notificationCard(
-      IconData icon,
-      Color iconColor,
-      String title,
-      String message,
-      String date,
-      bool isNew) {
-
+  /// Modern Notification Card
+  Widget _buildNotificationCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String message,
+    required String date,
+    required bool isNew,
+  }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border(
-          left: BorderSide(
-            color: iconColor,
-            width: 4,
-          ),
+        color: isNew ? const Color(0xFFF8FAFC) : Colors.white, // Very subtle background for new
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isNew ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           )
         ],
       ),
-
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          /// ICON
+          
+          /// ICON CONTAINER
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(14), // Squircle
             ),
-            child: Icon(icon, color: iconColor),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
 
-          /// TEXT
+          /// TEXT CONTENT
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 16,
+                          color: const Color(0xFF0F172A), // Slate 900
+                        ),
                       ),
                     ),
-
-                    if(isNew)
-                      const Icon(Icons.circle,
-                          color: Colors.blue,
-                          size: 8)
+                    if (isNew)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4, left: 8),
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4F46E5), // Indigo 600
+                          shape: BoxShape.circle,
+                        ),
+                      )
                   ],
                 ),
-
-                const SizedBox(height: 4),
-
+                
+                const SizedBox(height: 6),
+                
                 Text(
                   message,
                   style: const TextStyle(
-                    color: Colors.black54,
+                    color: Color(0xFF64748B), // Slate 500
+                    fontSize: 14,
+                    height: 1.4,
                   ),
                 ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  date,
-                  style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12),
+                
+                const SizedBox(height: 10),
+                
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF94A3B8)), // Slate 400
+                    const SizedBox(width: 4),
+                    Text(
+                      date,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8), // Slate 400
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -99,138 +114,157 @@ class NotificationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC), // Modern slate-50 background
 
-      backgroundColor: const Color(0xffECECF1),
-
-      body: SafeArea(
-        child: Column(
-          children: [
-
-            /// HEADER WITH BACK BUTTON
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(15, 20, 20, 20),
-
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue, Colors.purple],
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(25),
-                  bottomRight: Radius.circular(25),
-                ),
+      body: Column(
+        children: [
+          
+          /// MODERN HEADER
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 10, // Safe area top
+              left: 20,
+              right: 20,
+              bottom: 30,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF6366F1), // Indigo 500
+                  Color(0xFF4F46E5), // Indigo 600
+                ],
               ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(32),
+                bottomRight: Radius.circular(32),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                
+                /// BACK BUTTON
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
 
-              child: Column(
-                children: [
+                const SizedBox(width: 16),
 
-                  Row(
+                /// TITLE & SUBTITLE
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
-                      /// BACK BUTTON
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-
-                      const SizedBox(width: 5),
-
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-
-                            Text(
-                              "Notifications",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold),
-                            ),
-
-                            SizedBox(height: 4),
-
-                            Text(
-                              "Stay updated with latest news",
-                              style: TextStyle(color: Colors.white70),
-                            )
-                          ],
-                        ),
-                      ),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5),
-                        decoration: BoxDecoration(
+                      SizedBox(height: 4),
+                      Text(
+                        "Notifications",
+                        style: TextStyle(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
                         ),
-                        child: const Text(
-                          "2 new",
-                          style: TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Stay updated with the latest news",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
                       )
                     ],
                   ),
-                ],
-              ),
+                ),
+
+                /// UNREAD BADGE
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B), // Amber 500
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF59E0B).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      )
+                    ]
+                  ),
+                  child: const Text(
+                    "2 New",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              ],
             ),
+          ),
 
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
 
-            /// NOTIFICATION LIST
-            Expanded(
-              child: ListView(
-                children: [
+          /// NOTIFICATION LIST
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 20),
+              children: [
+                _buildNotificationCard(
+                  icon: Icons.work_outline_rounded,
+                  iconColor: const Color(0xFF3B82F6), // Blue 500
+                  iconBgColor: const Color(0xFFEFF6FF), // Blue 50
+                  title: "New Job Posted",
+                  message: "Apple has posted a new job opening for iOS Developer.",
+                  date: "Mar 2, 2026",
+                  isNew: true,
+                ),
 
-                  notificationCard(
-                    Icons.work,
-                    Colors.blue,
-                    "New Job Posted",
-                    "Apple has posted a new job opening for iOS Developer",
-                    "3/2/2026",
-                    true,
-                  ),
+                _buildNotificationCard(
+                  icon: Icons.description_outlined,
+                  iconColor: const Color(0xFF10B981), // Emerald 500
+                  iconBgColor: const Color(0xFFECFDF5), // Emerald 50
+                  title: "Application Shortlisted",
+                  message: "Congratulations! You have been shortlisted for Software Engineer at Google.",
+                  date: "Mar 3, 2026",
+                  isNew: true,
+                ),
 
-                  notificationCard(
-                    Icons.description,
-                    Colors.green,
-                    "Application Shortlisted",
-                    "You have been shortlisted for Software Engineer at Google",
-                    "3/3/2026",
-                    true,
-                  ),
+                _buildNotificationCard(
+                  icon: Icons.calendar_month_outlined,
+                  iconColor: const Color(0xFF8B5CF6), // Purple 500
+                  iconBgColor: const Color(0xFFF5F3FF), // Purple 50
+                  title: "Interview Scheduled",
+                  message: "Your interview for Google is scheduled on March 8, 2026 at 10:00 AM.",
+                  date: "Mar 4, 2026",
+                  isNew: false,
+                ),
 
-                  notificationCard(
-                    Icons.calendar_month,
-                    Colors.purple,
-                    "Interview Scheduled",
-                    "Your interview for Google is scheduled on March 8, 2026 at 10:00 AM",
-                    "3/4/2026",
-                    false,
-                  ),
-
-                  notificationCard(
-                    Icons.info,
-                    Colors.grey,
-                    "Placement Drive Announcement",
-                    "TCS campus drive will be conducted on March 15, 2026",
-                    "3/1/2026",
-                    false,
-                  ),
-
-                ],
-              ),
-            )
-          ],
-        ),
+                _buildNotificationCard(
+                  icon: Icons.info_outline_rounded,
+                  iconColor: const Color(0xFF64748B), // Slate 500
+                  iconBgColor: const Color(0xFFF1F5F9), // Slate 100
+                  title: "Placement Drive Announcement",
+                  message: "TCS campus drive will be conducted on March 15, 2026. Please prepare your docs.",
+                  date: "Mar 1, 2026",
+                  isNew: false,
+                ),
+              ],
+            ),
+          )
+        ],
       ),
     );
   }
