@@ -324,6 +324,33 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
                   size: 13, color: Color(0xFFCBD5E1)),
             ],
           ),
+
+          if (app['interviewDate'] != null)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF4F46E5).withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF4F46E5)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Interview: ${app['interviewDate']} at ${app['interviewTime'] ?? 'TBD'} · ${app['interviewMode'] ?? 'Online'}',
+                      style: const TextStyle(
+                        fontSize: 12, 
+                        color: Color(0xFF4F46E5), 
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

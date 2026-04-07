@@ -1,4 +1,4 @@
-// ============================================================
+ // ============================================================
 // auth_service.dart
 // Handles Firebase Authentication and role-based navigation.
 //

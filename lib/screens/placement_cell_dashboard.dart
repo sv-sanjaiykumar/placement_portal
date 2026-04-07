@@ -664,48 +664,97 @@ class _PlacementCellDashboardState extends State<PlacementCellDashboard> {
   // SCHEDULE TAB
   // ─────────────────────────────────────────────────────────
   Widget _buildScheduleContent() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 24,
-        left: 24, right: 24, bottom: 24,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Interview Schedule',
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: _slate900)),
-          const SizedBox(height: 4),
-          const Text('Upcoming interviews for shortlisted students',
-              style: TextStyle(color: _slate500, fontSize: 13)),
-          const SizedBox(height: 20),
-          _interviewCard('Sanjay Kumar',     'SDE – Google',         'Today, 11:00 AM',   'Online'),
-          _interviewCard('Priya Menon',      'Data Analyst – TCS',   'Today, 2:30 PM',    'On-site'),
-          _interviewCard('Arjun Singh',      'UI/UX – Zomato',       'Tomorrow, 10:00 AM','Online'),
-          _interviewCard('Amit Das',         'Backend Dev – Infosys','Apr 10, 9:30 AM',   'Online'),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: _signOut,
-              icon: const Icon(Icons.logout_rounded,
-                  color: Color(0xFFEF4444)),
-              label: const Text('Sign Out',
-                  style: TextStyle(
-                      color: Color(0xFFEF4444),
-                      fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFEF4444)),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    return Column(
+      children: [
+        // Header
+        Container(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 20,
+            left: 24, right: 24, bottom: 20,
           ),
-        ],
-      ),
+          color: Colors.white,
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Interview Schedule',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _slate900)),
+                    SizedBox(height: 3),
+                    Text('Upcoming interviews for shortlisted students',
+                        style: TextStyle(color: _slate500, fontSize: 12)),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _openScheduleSheet(uid),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Schedule'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+        // Main List
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('applications').snapshots(),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: _primary));
+              }
+              if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+
+              final docsResponse = snap.data?.docs ?? [];
+              final interviews = docsResponse.where((d) {
+                final data = d.data() as Map<String, dynamic>;
+                return data['status'] == 'Interview' || data['interviewDate'] != null;
+              }).toList();
+
+              if (interviews.isEmpty) {
+                return _emptyState('No Interviews', 'Tap "Schedule" to create one', Icons.event_busy_rounded);
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(24),
+                itemCount: interviews.length,
+                itemBuilder: (ctx, i) {
+                  final data = interviews[i].data() as Map<String, dynamic>;
+                  final name = data['studentName'] ?? 'Unknown';
+                  final role = '${data['jobTitle'] ?? ''} – ${data['company'] ?? ''}';
+                  
+                  // Format the time properly
+                  final date = data['interviewDate'] ?? '';
+                  final timeOfDay = data['interviewTime'] ?? '';
+                  final timeStr = date.isNotEmpty ? '$date, $timeOfDay' : 'TBD';
+                  
+                  final mode = data['interviewMode'] ?? 'Online';
+                  return _interviewCard(name, role, timeStr, mode);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openScheduleSheet(String uid) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ScheduleInterviewSheet(placementUid: uid),
     );
   }
 
@@ -901,6 +950,151 @@ class _PlacementCellDashboardState extends State<PlacementCellDashboard> {
           _buildDashboardContent(),
           _buildApplicantsContent(),
           _buildScheduleContent(),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleInterviewSheet extends StatefulWidget {
+  final String placementUid;
+  const _ScheduleInterviewSheet({required this.placementUid});
+
+  @override
+  State<_ScheduleInterviewSheet> createState() => _ScheduleInterviewSheetState();
+}
+
+class _ScheduleInterviewSheetState extends State<_ScheduleInterviewSheet> {
+  String? _selectedJobId;
+  String? _selectedAppId;
+  
+  final _dateController = TextEditingController();
+  final _timeController = TextEditingController();
+  final _modeController = TextEditingController(text: 'Online');
+
+  bool _loading = false;
+
+  Future<void> _submit() async {
+    if (_selectedAppId == null || _dateController.text.isEmpty || _timeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await FirebaseFirestore.instance.collection('applications').doc(_selectedAppId).update({
+        'status': 'Interview',
+        'interviewDate': _dateController.text,
+        'interviewTime': _timeController.text,
+        'interviewMode': _modeController.text,
+      });
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 24, right: 24, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Schedule Interview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+          const SizedBox(height: 16),
+          
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('jobs').where('postedBy', isEqualTo: widget.placementUid).snapshots(),
+            builder: (ctx, snap) {
+              if (!snap.hasData) return const LinearProgressIndicator();
+              final docs = snap.data!.docs;
+              return DropdownButtonFormField<String>(
+                value: _selectedJobId,
+                decoration: InputDecoration(
+                  labelText: 'Select Job', 
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                items: docs.map((d) {
+                  final data = d.data() as Map<String, dynamic>;
+                  return DropdownMenuItem(value: d.id, child: Text(data['title'] ?? 'Unknown'));
+                }).toList(),
+                onChanged: (v) {
+                  setState(() {
+                    _selectedJobId = v;
+                    _selectedAppId = null;
+                  });
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          
+          if (_selectedJobId != null)
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('applications').where('jobId', isEqualTo: _selectedJobId).snapshots(),
+              builder: (ctx, snap) {
+                if (!snap.hasData) return const LinearProgressIndicator();
+                final docs = snap.data!.docs;
+                if (docs.isEmpty) return const Text('No applicants yet for this job', style: TextStyle(color: Colors.grey));
+                
+                return DropdownButtonFormField<String>(
+                  value: _selectedAppId,
+                  decoration: InputDecoration(
+                    labelText: 'Select Applicant', 
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  items: docs.map((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    return DropdownMenuItem(value: d.id, child: Text('${data['studentName']} (${data['status']})'));
+                  }).toList(),
+                  onChanged: (v) {
+                    setState(() {
+                      _selectedAppId = v;
+                    });
+                  },
+                );
+              },
+            ),
+          const SizedBox(height: 12),
+          
+          TextField(
+            controller: _dateController, 
+            decoration: InputDecoration(labelText: 'Date (e.g. Apr 10, 2025)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _timeController, 
+            decoration: InputDecoration(labelText: 'Time (e.g. 10:00 AM)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _modeController, 
+            decoration: InputDecoration(labelText: 'Mode (Online / On-site)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+          ),
+          const SizedBox(height: 24),
+          
+          ElevatedButton(
+            onPressed: _loading ? null : _submit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF9333EA),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _loading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Confirm Schedule', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
         ],
       ),
     );
