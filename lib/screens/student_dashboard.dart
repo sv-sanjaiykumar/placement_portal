@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:placement_portal_app/screens/application_screen.dart';
 import 'package:placement_portal_app/screens/job_screen.dart';
 import 'package:placement_portal_app/screens/notifications_screen.dart';
 import 'package:placement_portal_app/screens/profile_screen.dart';
+import 'job_details_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -98,7 +101,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   /// MODERN JOB CARD (Reused from job_screen for consistency)
-  Widget _buildJobCard(String company, String role, String salary, String location) {
+  Widget _buildJobCard(BuildContext context, Map<String, dynamic> job, String jobId) {
+    final company = job['company'] ?? 'Unknown';
+    final role = job['title'] ?? 'Role';
+    final salary = job['salary'] ?? 'N/A';
+    final location = job['location'] ?? 'Location';
+
     // Generate a pseudo-random color for the company logo background based on name
     final colors = [
       const Color(0xFFEF4444), // Red 500
@@ -188,7 +196,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
             width: double.infinity,
             height: 44,
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => JobDetailsScreen(job: job, jobId: jobId),
+                  ),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFFE2E8F0)), // Slate 200
                 shape: RoundedRectangleBorder(
@@ -233,6 +248,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   Widget _buildHomeContent() {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final userName = FirebaseAuth.instance.currentUser?.displayName ?? "Student";
+
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -276,9 +294,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
-                          "Student Portfolio",
-                          style: TextStyle(
+                        Text(
+                          userName,
+                          style: const TextStyle(
                             fontSize: 24,
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -323,20 +341,49 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 const SizedBox(height: 32),
 
                 /// STATS GRID
-                GridView.count(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.5,
-                  children: [
-                    _buildStatCard("Applications", "3", Icons.description_outlined),
-                    _buildStatCard("Shortlisted", "1", Icons.check_circle_outline),
-                    _buildStatCard("Interviews", "2", Icons.calendar_today_outlined),
-                    _buildStatCard("Jobs Available", "12", Icons.work_outline),
-                  ],
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('applications')
+                      .where('studentUid', isEqualTo: uid)
+                      .snapshots(),
+                  builder: (ctx, appSnap) {
+                    final apps = appSnap.data?.docs ?? [];
+                    final totalApps = apps.length;
+                    final shortlisted = apps.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return data['status'] == 'Shortlisted';
+                    }).length;
+                    final interviews = apps.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return data['status'] == 'Interview';
+                    }).length;
+
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('jobs')
+                          .where('status', isEqualTo: 'Active')
+                          .snapshots(),
+                      builder: (ctx, jobSnap) {
+                        final activeJobs = jobSnap.data?.docs.length ?? 0;
+
+                        return GridView.count(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.5,
+                          children: [
+                            _buildStatCard("Applications", "$totalApps", Icons.description_outlined),
+                            _buildStatCard("Shortlisted", "$shortlisted", Icons.check_circle_outline),
+                            _buildStatCard("Interviews", "$interviews", Icons.calendar_today_outlined),
+                            _buildStatCard("Jobs Available", "$activeJobs", Icons.work_outline),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
               ],
             ),
@@ -429,23 +476,59 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
                 const SizedBox(height: 8),
 
-                _buildJobCard(
-                    "Google",
-                    "Software Engineer",
-                    "₹18-22 LPA",
-                    "Bangalore"),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('jobs')
+                      .where('status', isEqualTo: 'Active')
+                      .snapshots(),
+                  builder: (ctx, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                        )
+                      );
+                    }
+                    if (snap.hasError) {
+                      return const Center(child: Text("Error fetching jobs"));
+                    }
 
-                _buildJobCard(
-                    "Microsoft",
-                    "SDE Intern",
-                    "₹80,000/mo",
-                    "Hyderabad"),
+                    final docsResponse = snap.data?.docs ?? [];
+                    if (docsResponse.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 20, bottom: 20),
+                        child: Center(
+                          child: Text(
+                            "No active jobs at the moment",
+                            style: TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ),
+                      );
+                    }
 
-                _buildJobCard(
-                    "Amazon",
-                    "Data Analyst",
-                    "₹12-15 LPA",
-                    "Mumbai"),
+                    // Sort locally
+                    final docs = docsResponse.toList();
+                    docs.sort((a, b) {
+                      final dataA = a.data() as Map<String, dynamic>;
+                      final dataB = b.data() as Map<String, dynamic>;
+                      final tsA = dataA['createdAt'] as Timestamp?;
+                      final tsB = dataB['createdAt'] as Timestamp?;
+                      if (tsA == null || tsB == null) return 0;
+                      return tsB.compareTo(tsA);
+                    });
+
+                    // Take latest 3
+                    final latestDocs = docs.take(3).toList();
+
+                    return Column(
+                      children: latestDocs.map((doc) {
+                        final job = doc.data() as Map<String, dynamic>;
+                        return _buildJobCard(context, job, doc.id);
+                      }).toList(),
+                    );
+                  },
+                ),
                     
                 const SizedBox(height: 20),
               ],

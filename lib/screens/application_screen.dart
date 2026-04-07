@@ -1,4 +1,13 @@
+// ============================================================
+// application_screen.dart  (Student side)
+// Shows the current student's applications streamed live from
+// Firestore /applications where studentUid == current user.
+// ============================================================
+
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class ApplicationsScreen extends StatefulWidget {
   const ApplicationsScreen({super.key});
@@ -8,139 +17,179 @@ class ApplicationsScreen extends StatefulWidget {
 }
 
 class _ApplicationsScreenState extends State<ApplicationsScreen> {
-  String selectedFilter = "All";
-  final List<String> filters = [
-    "All",
-    "Applied",
-    "Shortlisted",
-    "Interview",
-    "Selected",
-    "Rejected"
+  String _selectedFilter = 'All';
+  final List<String> _filters = [
+    'All', 'Applied', 'Shortlisted', 'Interview', 'Offer', 'Rejected'
   ];
 
-  // Dummy Application Data for the modern UI presentation
-  final List<Map<String, dynamic>> applications = [
-    {
-      "company": "Google",
-      "role": "Software Engineer",
-      "status": "Shortlisted",
-      "statusColor": const Color(0xFF10B981), // Emerald
-      "date": "Mar 1, 2026",
-      "logoColor": const Color(0xFFEA4335),
-    },
-    {
-      "company": "Microsoft",
-      "role": "SDE Intern",
-      "status": "Applied",
-      "statusColor": const Color(0xFF3B82F6), // Blue
-      "date": "Mar 2, 2026",
-      "logoColor": const Color(0xFF00A4EF),
-    },
-    {
-      "company": "Amazon",
-      "role": "Data Analyst",
-      "status": "Selected",
-      "statusColor": const Color(0xFF8B5CF6), // Purple
-      "date": "Feb 28, 2026",
-      "logoColor": const Color(0xFFFF9900),
-    },
-  ];
+  // ── Status → color ────────────────────────────────────────
+  static Color _statusColor(String status) {
+    switch (status) {
+      case 'Shortlisted': return const Color(0xFF10B981);
+      case 'Interview':   return const Color(0xFF4F46E5);
+      case 'Offer':       return const Color(0xFFF59E0B);
+      case 'Rejected':    return const Color(0xFFEF4444);
+      default:            return const Color(0xFF3B82F6); // Applied
+    }
+  }
+
+  // ── Status → icon ─────────────────────────────────────────
+  static IconData _statusIcon(String status) {
+    switch (status) {
+      case 'Shortlisted': return Icons.check_circle_outline_rounded;
+      case 'Interview':   return Icons.calendar_today_rounded;
+      case 'Offer':       return Icons.handshake_outlined;
+      case 'Rejected':    return Icons.cancel_outlined;
+      default:            return Icons.send_rounded;
+    }
+  }
+
+  // ── Format Firestore timestamp ────────────────────────────
+  String _formatDate(dynamic ts) {
+    if (ts == null) return '—';
+    try {
+      final dt = (ts as Timestamp).toDate();
+      return DateFormat('MMM d, yyyy').format(dt);
+    } catch (_) {
+      return '—';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Modern slate-50 background
-      
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// MODERN HEADER
+          // ── GRADIENT HEADER ───────────────────────────────
           Container(
             width: double.infinity,
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 10, // Safe area top
-              left: 20,
-              right: 20,
-              bottom: 30,
+              top: MediaQuery.of(context).padding.top + 16,
+              left: 20, right: 20, bottom: 24,
             ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF6366F1), // Indigo 500
-                  Color(0xFF4F46E5), // Indigo 600
-                ],
+                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
               ),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
               ),
             ),
-            child: Row(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                
-                /// BACK BUTTON
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                /// TITLE & SUBTITLE
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 4),
-                      Text(
-                        "My Applications",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        "Track your application status",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      )
-                    ],
-                  ),
-                ),
+                Text('My Applications',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold)),
+                SizedBox(height: 4),
+                Text('Track your application status in real-time',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
               ],
             ),
           ),
-          
-          _buildFilterSection(),
-          const SizedBox(height: 10),
-          
-          /// APPLICATION LIST
-          Expanded(
+
+          // ── FILTER CHIPS ──────────────────────────────────
+          SizedBox(
+            height: 56,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              itemCount: applications.length,
-              itemBuilder: (context, index) {
-                final app = applications[index];
-                
-                // Filtering Logic
-                if (selectedFilter != "All" && app["status"] != selectedFilter) {
-                  return const SizedBox.shrink();
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              scrollDirection: Axis.horizontal,
+              itemCount: _filters.length,
+              itemBuilder: (context, i) {
+                final f = _filters[i];
+                final selected = _selectedFilter == f;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: ChoiceChip(
+                    label: Text(f,
+                        style: TextStyle(
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            fontSize: 13,
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF64748B))),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _selectedFilter = f),
+                    backgroundColor: Colors.white,
+                    selectedColor: const Color(0xFF4F46E5),
+                    side: BorderSide(
+                      color: selected
+                          ? const Color(0xFF4F46E5)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    showCheckmark: false,
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ── APPLICATION LIST (live Firestore) ─────────────
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('applications')
+                  .where('studentUid', isEqualTo: uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                      child: CircularProgressIndicator(
+                          color: Color(0xFF4F46E5)));
                 }
+
+                if (snapshot.hasError) {
+                  return Center(
+                      child: Text('Error: ${snapshot.error}',
+                          style: const TextStyle(
+                              color: Color(0xFF64748B))));
+                }
+
+                var docsResponse = snapshot.data?.docs ?? [];
                 
-                return _buildApplicationCard(app);
+                // Sort locally to avoid composite index requirement
+                var docs = docsResponse.toList();
+                docs.sort((a, b) {
+                  final dataA = a.data() as Map<String, dynamic>;
+                  final dataB = b.data() as Map<String, dynamic>;
+                  final tsA = dataA['appliedAt'] as Timestamp?;
+                  final tsB = dataB['appliedAt'] as Timestamp?;
+                  if (tsA == null || tsB == null) return 0;
+                  return tsB.compareTo(tsA);
+                });
+
+                // Filter by status
+                if (_selectedFilter != 'All') {
+                  docs = docs.where((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    return data['status'] == _selectedFilter;
+                  }).toList();
+                }
+
+                if (docs.isEmpty) return _buildEmpty();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  itemCount: docs.length,
+                  itemBuilder: (context, i) {
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    return _buildCard(data);
+                  },
+                );
               },
             ),
           ),
@@ -149,57 +198,21 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
     );
   }
 
-  /// SCROLLABLE FILTER CHIPS
-  Widget _buildFilterSection() {
-    return Container(
-      height: 50,
-      margin: const EdgeInsets.only(top: 10),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        itemCount: filters.length,
-        itemBuilder: (context, index) {
-          final filter = filters[index];
-          final isSelected = selectedFilter == filter;
-          
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: ChoiceChip(
-              label: Text(
-                filter,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0xFF64748B), // Slate 500
-                ),
-              ),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  selectedFilter = filter;
-                });
-              },
-              backgroundColor: Colors.white,
-              selectedColor: const Color(0xFF4F46E5), // Indigo 600
-              side: BorderSide(
-                color: isSelected ? const Color(0xFF4F46E5) : const Color(0xFFE2E8F0),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20), // Smooth rounded pills
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              showCheckmark: false, // Cleaner look without the checkmark
-            ),
-          );
-        },
-      ),
-    );
-  }
+  // ── Application Card ──────────────────────────────────────
+  Widget _buildCard(Map<String, dynamic> app) {
+    final status    = app['status'] ?? 'Applied';
+    final color     = _statusColor(status);
+    final icon      = _statusIcon(status);
+    final company   = app['company'] ?? '';
+    final logoColor = [
+      const Color(0xFFEF4444), const Color(0xFF3B82F6),
+      const Color(0xFF10B981), const Color(0xFFF59E0B),
+      const Color(0xFF8B5CF6),
+    ][company.length % 5];
 
-  /// MODERN APPLICATION CARD
-  Widget _buildApplicationCard(Map<String, dynamic> app) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -210,103 +223,145 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: const Color(0xFFF1F5F9)), // Slate 100 border
+        border: Border.all(color: const Color(0xFFF1F5F9)),
       ),
       child: Column(
         children: [
-          // Top Section: Info & Status
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              
-              // Custom Colored Logo Avatar
+              // Logo
               Container(
-                width: 52,
-                height: 52,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: app["logoColor"].withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16), // Squircle shape
+                  color: logoColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  Icons.business_center_rounded,
-                  color: app["logoColor"],
-                  size: 24,
+                child: Center(
+                  child: Text(
+                    company.isNotEmpty ? company[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: logoColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              
-              // Job Details
+              const SizedBox(width: 14),
+              // Details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      app["role"],
+                      app['jobTitle'] ?? 'Unknown Role',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 17,
+                        fontSize: 16,
                         color: Color(0xFF0F172A),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      app["company"],
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    const SizedBox(height: 3),
+                    Text(company,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        )),
                   ],
                 ),
               ),
-              
-              // Status Badge
+              // Status badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: app["statusColor"].withOpacity(0.1),
+                  color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  app["status"],
-                  style: TextStyle(
-                    color: app["statusColor"],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 12, color: color),
+                    const SizedBox(width: 4),
+                    Text(status,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        )),
+                  ],
                 ),
               ),
             ],
           ),
-          
+
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(height: 1, color: Color(0xFFF1F5F9), thickness: 1.5),
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9),
+                thickness: 1),
           ),
-          
-          // Bottom Section: Date & Action arrow
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Text(
-                    "Applied: ${app['date']}",
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  const Icon(Icons.access_time_rounded,
+                      size: 14, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 5),
+                  Text('Applied: ${_formatDate(app['appliedAt'])}',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      )),
                 ],
               ),
-              const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFCBD5E1)),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 13, color: Color(0xFFCBD5E1)),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Empty state ───────────────────────────────────────────
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.description_outlined,
+                  color: Color(0xFF4F46E5), size: 40),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _selectedFilter == 'All'
+                  ? 'No Applications Yet'
+                  : 'No "$_selectedFilter" Applications',
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 8),
+            const Text('Browse Jobs and hit Apply Now!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF64748B))),
+          ],
+        ),
       ),
     );
   }

@@ -1,36 +1,57 @@
-import 'package:flutter/material.dart';
+// ============================================================
+// job_screen.dart  (Student side)
+// Streams live job listings from Firestore /jobs.
+// Students can apply — application is written to /applications.
+// ============================================================
 
-class JobsScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'job_details_screen.dart';
+
+class JobsScreen extends StatefulWidget {
   const JobsScreen({super.key});
 
-  /// Modern helper widget for tags (e.g., "Fulltime", "Remote")
-  Widget _buildTag(String text, Color bgColor, Color textColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+  @override
+  State<JobsScreen> createState() => _JobsScreenState();
+}
+
+class _JobsScreenState extends State<JobsScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // ── Palette ───────────────────────────────────────────────
+  static const Color _primary      = Color(0xFF4F46E5);
+  static const Color _slate900     = Color(0xFF0F172A);
+  static const Color _slate500     = Color(0xFF64748B);
+  static const Color _slate100     = Color(0xFFF1F5F9);
+  static const Color _slate50      = Color(0xFFF8FAFC);
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  /// Refined Modern Job Card
-  Widget _buildJobCard({
-    required String title,
-    required String company,
-    required String location,
-    required String salary,
-    required Color logoBgColor,
-    required Color logoColor,
-  }) {
+  // ── Color from company name initial ──────────────────────
+  Color _logoColor(String company) {
+    final colors = [
+      const Color(0xFFEF4444), const Color(0xFF3B82F6),
+      const Color(0xFF10B981), const Color(0xFFF59E0B),
+      const Color(0xFF8B5CF6), const Color(0xFF9333EA),
+    ];
+    return colors[company.length % colors.length];
+  }
+
+  // ── Job Card ──────────────────────────────────────────────
+  Widget _buildJobCard(BuildContext ctx, Map<String, dynamic> job, String jobId) {
+    final color   = _logoColor(job['company'] ?? 'A');
+    final company = job['company'] ?? '';
+    final title   = job['title']   ?? '';
+    final salary  = job['salary']  ?? 'Not specified';
+    final loc     = job['location'] ?? '';
+    final type    = job['type']    ?? 'Full-time';
+    final cgpa    = job['minCgpa'] ?? '0.0';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
@@ -39,176 +60,165 @@ class JobsScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 20,
-            offset: const Offset(0, 10),
+            offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: const Color(0xFFF1F5F9)), // Slate 100
+        border: Border.all(color: _slate100),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
-          /// TOP ROW: Logo, Title, Bookmark
+
+          // ── Top row ─────────────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Modern square-ish logo container
               Container(
-                width: 56,
-                height: 56,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: logoBgColor,
-                  borderRadius: BorderRadius.circular(16),
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(Icons.business_center_rounded, color: logoColor, size: 28),
+                child: Center(
+                  child: Text(
+                    company.isNotEmpty ? company[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                    ),
+                  ),
+                ),
               ),
-              
-              const SizedBox(width: 16),
-              
-              // Title & Company
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A), // Slate 900
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      company,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B), // Slate 500
-                      ),
-                    ),
+                    Text(title, style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.bold, color: _slate900)),
+                    const SizedBox(height: 3),
+                    Text(company, style: const TextStyle(
+                        fontSize: 13, color: _slate500, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ),
-              
-              // Bookmark Button
+              // Job type badge
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
-                  Icons.bookmark_outline_rounded,
-                  size: 20,
-                  color: Color(0xFF94A3B8), // Slate 400
-                ),
+                child: Text(type,
+                    style: const TextStyle(
+                        color: _primary, fontSize: 11, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
-          /// META ROW: Location & Salary
-          Row(
+          // ── Meta chips ───────────────────────────────────
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.location_on_outlined, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Text(
-                    location,
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 24),
-              Row(
-                children: [
-                  const Icon(Icons.monetization_on_outlined, size: 18, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 6),
-                  Text(
-                    salary,
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          /// TAGS ROW
-          Row(
-            children: [
-              _buildTag("Fulltime", const Color(0xFFEEF2FF), const Color(0xFF4F46E5)), // Indigo styles
-              const SizedBox(width: 10),
-              _buildTag("Min CGPA: 7.0", const Color(0xFFF1F5F9), const Color(0xFF475569)), // Slate styles
+              _chip(Icons.location_on_outlined, loc,
+                  const Color(0xFF6366F1), const Color(0xFFEEF2FF)),
+              _chip(Icons.payments_outlined,    salary,
+                  const Color(0xFF10B981), const Color(0xFFECFDF5)),
+              if (cgpa != '0.0')
+                _chip(Icons.grade_outlined, 'CGPA ≥ $cgpa',
+                    const Color(0xFFF59E0B), const Color(0xFFFEF3C7)),
             ],
           ),
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Divider(color: Color(0xFFF1F5F9), thickness: 1.5, height: 1),
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9), thickness: 1),
           ),
 
-          /// ACTIONS ROW
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF0F172A),
-                      side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {},
-                    child: const Text(
-                      "View Details",
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
+          // ── View Details button ───────────────────────────
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: OutlinedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => JobDetailsScreen(job: job, jobId: jobId),
                   ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE2E8F0)), // Slate 200
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                foregroundColor: const Color(0xFF0F172A), // Slate 900
               ),
-              
-              const SizedBox(width: 12),
-              
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5), // Indigo 600
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {},
-                    child: const Text(
-                      "Apply Now",
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
+              child: const Text(
+                "View Details",
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
-            ],
-          )
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String text, Color color, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(text, style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // ── Empty state ───────────────────────────────────────────
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF2FF),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.work_off_outlined,
+                  color: _primary, size: 40),
+            ),
+            const SizedBox(height: 20),
+            const Text('No Jobs Available',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _slate900)),
+            const SizedBox(height: 8),
+            const Text('Check back later for new job postings',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _slate500)),
+          ],
+        ),
       ),
     );
   }
@@ -216,155 +226,138 @@ class JobsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Slate 50
-
+      backgroundColor: _slate50,
       body: Column(
         children: [
-          /// MODERN HEADER
+          // ── GRADIENT HEADER ───────────────────────────────
           Container(
             width: double.infinity,
             padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 10, // Safe area top
-              left: 20,
-              right: 20,
-              bottom: 30,
+              top: MediaQuery.of(context).padding.top + 16,
+              left: 20, right: 20, bottom: 24,
             ),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF6366F1), // Indigo 500
-                  Color(0xFF4F46E5), // Indigo 600
-                ],
+                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
               ),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
               ),
             ),
-            child: Row(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                
-                /// BACK BUTTON
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                /// TITLE & SUBTITLE
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 4),
-                      Text(
-                        "Job Opportunities",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        "Find your dream job today",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      )
-                    ],
-                  ),
-                ),
+                Text('Job Opportunities',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold)),
+                SizedBox(height: 4),
+                Text('Live postings from placement cell',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
               ],
             ),
           ),
-          
-          /// MODERN SEARCH/FILTER BAR
+
+          // ── SEARCH BAR ────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: const Row(
-                      children: [
-                        SizedBox(width: 16),
-                        Icon(Icons.search_rounded, color: Color(0xFF94A3B8)),
-                        SizedBox(width: 12),
-                        Text(
-                          "Search jobs, roles...",
-                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
-                        ),
-                      ],
-                    ),
-                  ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Search by job title or company...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Color(0xFF94A3B8)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded,
+                            color: Color(0xFF94A3B8), size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  height: 50,
-                  width: 50,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4F46E5),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.tune_rounded, color: Colors.white),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
-              ],
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: _primary, width: 1.5),
+                ),
+              ),
             ),
           ),
 
-          /// SCROLLABLE JOB LIST
+          // ── JOB LIST (live from Firestore) ────────────────
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _buildJobCard(
-                  title: "Software Engineer",
-                  company: "Google",
-                  location: "Bangalore",
-                  salary: "₹18-22 LPA",
-                  logoBgColor: const Color(0xFFFEF2F2), // Red tint for Google
-                  logoColor: const Color(0xFFEA4335),
-                ),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('jobs')
+                  .where('status', isEqualTo: 'Active')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: _primary));
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}',
+                        style: const TextStyle(color: _slate500)));
+                }
+
+                var docsResponse = snapshot.data?.docs ?? [];
                 
-                _buildJobCard(
-                  title: "SDE Intern",
-                  company: "Microsoft",
-                  location: "Hyderabad",
-                  salary: "₹80,000/month",
-                  logoBgColor: const Color(0xFFEFF6FF), // Blue tint for Microsoft
-                  logoColor: const Color(0xFF00A4EF),
-                ),
-                
-                _buildJobCard(
-                  title: "Data Analyst",
-                  company: "Amazon",
-                  location: "Mumbai",
-                  salary: "₹12-15 LPA",
-                  logoBgColor: const Color(0xFFFFF7ED), // Orange tint for Amazon
-                  logoColor: const Color(0xFFFF9900),
-                ),
-                
-                // Extra padding at bottom for scroll clearance
-                const SizedBox(height: 20),
-              ],
+                // Sort locally to avoid composite index requirement
+                var docs = docsResponse.toList();
+                docs.sort((a, b) {
+                  final dataA = a.data() as Map<String, dynamic>;
+                  final dataB = b.data() as Map<String, dynamic>;
+                  final tsA = dataA['createdAt'] as Timestamp?;
+                  final tsB = dataB['createdAt'] as Timestamp?;
+                  if (tsA == null || tsB == null) return 0;
+                  return tsB.compareTo(tsA);
+                });
+
+                // Apply search filter
+                if (_searchQuery.isNotEmpty) {
+                  docs = docs.where((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    return (data['title']   ?? '').toString().toLowerCase()
+                               .contains(_searchQuery) ||
+                           (data['company'] ?? '').toString().toLowerCase()
+                               .contains(_searchQuery);
+                  }).toList();
+                }
+
+                if (docs.isEmpty) return _buildEmpty();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  itemCount: docs.length,
+                  itemBuilder: (ctx, i) {
+                    final doc  = docs[i];
+                    final data = doc.data() as Map<String, dynamic>;
+                    return _buildJobCard(ctx, data, doc.id);
+                  },
+                );
+              },
             ),
           ),
         ],

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_screen.dart';
-import 'role_selection_screen.dart';
+import 'student_dashboard.dart';
+import 'admin_dashboard.dart';
+import 'placement_cell_dashboard.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,8 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool rememberMe = false;
   bool hidePassword = true;
   bool loading = false;
-
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   void showErrorDialog(String title, String message) {
     showDialog(
@@ -37,69 +38,113 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ── AuthService instance ──────────────────────────────────
+  // Handles sign-in and role resolution logic
+  final AuthService _authService = AuthService();
+
   Future<void> loginUser() async {
-    // Validation: Check if email is empty
+    // ── Step 1: Basic input validation ────────────────────────
     if (emailController.text.trim().isEmpty) {
       showErrorDialog("Empty Email", "Please enter your email address");
       return;
     }
-
-    // Validation: Check if password is empty
     if (passwordController.text.trim().isEmpty) {
       showErrorDialog("Empty Password", "Please enter your password");
       return;
     }
-
-    // Validation: Check if email format is valid
     if (!emailController.text.contains("@")) {
       showErrorDialog("Invalid Email", "Please enter a valid email address");
       return;
     }
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
-      await _auth.signInWithEmailAndPassword(
+      // ── Step 2: Firebase sign-in & role resolution ──────────
+      // AuthService authenticates the user with Firebase and
+      // returns their UserRole based on their email address.
+      final UserRole role = await _authService.signIn(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      // Navigate to Role Selection Screen if widget is still mounted
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
-        );
+      if (!mounted) return;
+
+      // ── Step 3: Role-based navigation ───────────────────────
+      // Use Navigator.pushAndRemoveUntil so the user can't
+      // press back to return to the login screen.
+      Widget destination;
+
+      switch (role) {
+        case UserRole.admin:
+          // Admin → Admin Dashboard (full system control)
+          destination = const AdminDashboard();
+          break;
+
+        case UserRole.placementCell:
+          // Placement Cell → Recruiter Dashboard
+          destination = const PlacementCellDashboard();
+          break;
+
+        case UserRole.student:
+          // Student → Student Dashboard
+          destination = const StudentDashboard();
+          break;
+
+        case UserRole.unknown:
+          // Unknown role → show an error; don't navigate
+          setState(() => loading = false);
+          showErrorDialog(
+            "Access Denied",
+            "Your account is not assigned to a recognized role.\nContact the administrator.",
+          );
+          return;
       }
+
+      // Navigate and clear the back-stack (no way back to login)
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+        (route) => false,
+      );
+
     } on FirebaseAuthException catch (e) {
+      // ── Firebase-specific error handling ─────────────────────
       if (mounted) setState(() => loading = false);
       String errorTitle = "Login Failed";
       String errorMessage = e.message ?? "An error occurred during login";
 
-      // Customize error messages based on Firebase error codes
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
-        errorTitle = "User Not Found";
-        errorMessage = "No account found or invalid credentials provided.";
-      } else if (e.code == 'wrong-password') {
-        errorTitle = "Wrong Password";
-        errorMessage = "The password you entered is incorrect";
-      } else if (e.code == 'invalid-email') {
-        errorTitle = "Invalid Email";
-        errorMessage = "The email format is invalid";
-      } else if (e.code == 'user-disabled') {
-        errorTitle = "Account Disabled";
-        errorMessage = "This account has been disabled";
-      } else if (e.code == 'too-many-requests') {
-        errorTitle = "Too Many Attempts";
-        errorMessage = "Too many failed login attempts. Please try again later";
+      // Map Firebase error codes to user-friendly messages
+      switch (e.code) {
+        case 'user-not-found':
+        case 'invalid-credential':
+          errorTitle = "User Not Found";
+          errorMessage = "No account found or invalid credentials provided.";
+          break;
+        case 'wrong-password':
+          errorTitle = "Wrong Password";
+          errorMessage = "The password you entered is incorrect.";
+          break;
+        case 'invalid-email':
+          errorTitle = "Invalid Email";
+          errorMessage = "The email address format is invalid.";
+          break;
+        case 'user-disabled':
+          errorTitle = "Account Disabled";
+          errorMessage = "This account has been disabled by an administrator.";
+          break;
+        case 'too-many-requests':
+          errorTitle = "Too Many Attempts";
+          errorMessage = "Too many failed login attempts. Please try again later.";
+          break;
       }
 
       showErrorDialog(errorTitle, errorMessage);
+
     } catch (e) {
+      // ── Generic error fallback ────────────────────────────────
       if (mounted) setState(() => loading = false);
-      showErrorDialog("Error", "An unexpected error occurred");
+      showErrorDialog("Error", "An unexpected error occurred. Please try again.");
     }
   }
   

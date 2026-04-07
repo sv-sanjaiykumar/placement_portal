@@ -58,6 +58,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Shows a styled error dialog for upload failures
+  void showUploadErrorDialog({
+    required String title,
+    required String message,
+    String? hint,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(28),
+        titlePadding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                color: Color(0xFFEF4444),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            if (hint != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        size: 16, color: Color(0xFFF59E0B)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        hint,
+                        style: const TextStyle(
+                          color: Color(0xFF92400E),
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Got it',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> uploadResume() async {
     try {
       // Pick a PDF file
@@ -111,19 +218,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Refresh user data
         await fetchUserData();
       }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        setState(() => isUploadingResume = false);
+
+        String title = 'Upload Failed';
+        String message = 'Something went wrong while uploading your resume.';
+        String? hint;
+
+        if (e.code == 'storage/unauthorized' || e.code == 'unauthorized') {
+          title = 'Permission Denied';
+          message = 'You don\'t have permission to upload files. Firebase Storage rules may be restricting access.';
+          hint = 'Ask your admin to configure Firebase Storage security rules.';
+        } else if (e.code == 'storage/bucket-not-found' || e.code == 'bucket-not-found') {
+          title = 'Storage Not Configured';
+          message = 'Firebase Storage bucket is not configured for this project.';
+          hint = 'Go to Firebase Console → Storage → Get Started to enable Firebase Storage.';
+        } else if (e.code == 'storage/unknown' || e.code == 'unknown') {
+          title = 'Storage Unavailable';
+          message = 'Firebase Storage is not available or has not been set up yet.';
+          hint = 'Enable Firebase Storage in your Firebase Console to use the resume upload feature.';
+        } else {
+          message = e.message ?? message;
+          hint = 'Error code: ${e.code}';
+        }
+
+        showUploadErrorDialog(title: title, message: message, hint: hint);
+      }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          isUploadingResume = false;
-        });
+        setState(() => isUploadingResume = false);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading resume: $e'),
-            backgroundColor: const Color(0xFFEF4444), // Red 500
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        showUploadErrorDialog(
+          title: 'Upload Failed',
+          message: 'An unexpected error occurred while uploading your resume.',
+          hint: 'Firebase Storage may not be enabled for this project. Enable it in the Firebase Console under Storage.',
         );
       }
     }
@@ -248,17 +377,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 
-                /// BACK BUTTON
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
 
                 const Text(
                   "My Profile",
