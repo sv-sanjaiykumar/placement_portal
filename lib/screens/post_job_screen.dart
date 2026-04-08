@@ -78,6 +78,16 @@ class _PostJobScreenState extends State<PostJobScreen> {
         'createdAt':   FieldValue.serverTimestamp(),
       });
 
+      // Fire a push notification to all students
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'title': 'New Job Posted',
+        'message': '${_companyController.text.trim()} has posted a new job opening for ${_titleController.text.trim()}.',
+        'type': 'job',
+        'targetUserId': 'all',
+        'createdAt': FieldValue.serverTimestamp(),
+        'isNew': true,
+      });
+
       if (!mounted) return;
       setState(() { _posted = true; });
 
