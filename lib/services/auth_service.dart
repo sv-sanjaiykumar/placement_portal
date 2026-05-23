@@ -1,15 +1,3 @@
- // ============================================================
-// auth_service.dart
-// Handles Firebase Authentication and role-based navigation.
-//
-// Strategy:
-//   1. Authenticate with Firebase Auth (email + password).
-//   2. Check hardcoded map first (fast, covers admin & placement cell).
-//   3. If not in hardcoded map, query Firestore /users/{uid}
-//      — this covers students created via the Admin "Create Student" page.
-//   4. Return UserRole so the login screen can navigate correctly.
-// ============================================================
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -77,6 +65,37 @@ class AuthService {
 
     // Step 4: Fallback ─────────────────────────────────────────
     // Email authenticated successfully but has no role assigned.
+    return UserRole.unknown;
+  }
+
+  // Resolves the role for an already authenticated user session.
+  Future<UserRole> resolveCurrentUserRole() async {
+    final user = _auth.currentUser;
+    if (user == null) return UserRole.unknown;
+
+    final normalizedEmail = (user.email ?? '').trim().toLowerCase();
+    final hardcoded = _hardcodedRoles[normalizedEmail];
+    if (hardcoded != null) return hardcoded;
+
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        final roleStr = doc.data()?['role'] as String? ?? 'unknown';
+        switch (roleStr) {
+          case 'admin':
+            return UserRole.admin;
+          case 'placementCell':
+            return UserRole.placementCell;
+          case 'student':
+            return UserRole.student;
+          default:
+            return UserRole.unknown;
+        }
+      }
+    } catch (_) {
+      // Firestore read failed; treat it as unknown role.
+    }
+
     return UserRole.unknown;
   }
 

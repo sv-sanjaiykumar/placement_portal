@@ -1,5 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:placement_portal_app/screens/admin_dashboard.dart';
+import 'package:placement_portal_app/screens/placement_cell_dashboard.dart';
+import 'package:placement_portal_app/screens/student_dashboard.dart';
+import 'package:placement_portal_app/services/auth_service.dart';
 import 'welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -11,6 +16,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  final AuthService _authService = AuthService();
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -41,17 +47,48 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // navigate to next page after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const WelcomeScreen(),
-          ),
-        );
-      }
-    });
+    // Navigate after splash animation. If a user session already exists,
+    // route directly to that user's dashboard.
+    Timer(const Duration(seconds: 3), _navigateAfterSplash);
+  }
+
+  Future<void> _navigateAfterSplash() async {
+    if (!mounted) return;
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+      );
+      return;
+    }
+
+    final UserRole role = await _authService.resolveCurrentUserRole();
+    if (!mounted) return;
+
+    Widget destination;
+    switch (role) {
+      case UserRole.admin:
+        destination = const AdminDashboard();
+        break;
+      case UserRole.placementCell:
+        destination = const PlacementCellDashboard();
+        break;
+      case UserRole.student:
+        destination = const StudentDashboard();
+        break;
+      case UserRole.unknown:
+        await FirebaseAuth.instance.signOut();
+        destination = const WelcomeScreen();
+        break;
+    }
+
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+    );
   }
 
   @override
