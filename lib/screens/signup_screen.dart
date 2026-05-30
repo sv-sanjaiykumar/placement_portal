@@ -24,6 +24,34 @@ class _SignupScreenState extends State<SignupScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  String _mapAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'This email is already registered. Please login instead.';
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'operation-not-allowed':
+        return 'Email/password signup is not enabled in Firebase Auth.';
+      case 'network-request-failed':
+        return 'Network error. Check internet connection and try again.';
+      default:
+        return e.message ?? 'Signup failed. Please try again.';
+    }
+  }
+
+  String _mapFirestoreError(FirebaseException e) {
+    switch (e.code) {
+      case 'permission-denied':
+        return 'Firestore permission denied. Update Firestore rules to allow users to create their own profile document.';
+      case 'unavailable':
+        return 'Firestore is temporarily unavailable. Please try again.';
+      default:
+        return e.message ?? 'Failed to save user profile. Please try again.';
+    }
+  }
+
   void showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -60,19 +88,27 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      final normalizedEmail = emailController.text.trim().toLowerCase();
+
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: emailController.text.trim(),
+        email: normalizedEmail,
         password: passwordController.text.trim(),
       );
 
       String uid = userCredential.user!.uid;
 
-      await _firestore.collection("users").doc(uid).set({
-        "name": nameController.text.trim(),
-        "email": emailController.text.trim(),
-        "role": role,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
+      try {
+        await _firestore.collection("users").doc(uid).set({
+          "name": nameController.text.trim(),
+          "email": normalizedEmail,
+          "role": role,
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+      } on FirebaseException catch (e) {
+        // Prevent orphan auth accounts when profile write fails.
+        await userCredential.user?.delete();
+        rethrow;
+      }
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -84,11 +120,15 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        showErrorDialog(e.message ?? "An error occurred during signup.");
+        showErrorDialog(_mapAuthError(e));
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        showErrorDialog(_mapFirestoreError(e));
       }
     } catch (e) {
       if (mounted) {
-        showErrorDialog("An unexpected error occurred. Please try again.");
+        showErrorDialog("Unexpected error: $e");
       }
     } finally {
       if (mounted) {
