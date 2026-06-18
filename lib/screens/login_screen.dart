@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'signup_screen.dart';
 import 'student_dashboard.dart';
 import 'admin_dashboard.dart';
 import 'placement_cell_dashboard.dart';
@@ -62,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       // ── Step 2: Firebase sign-in & role resolution ──────────
       // AuthService authenticates the user with Firebase and
-      // returns their UserRole based on their email address.
+      // returns their UserRole based on their Firestore profile.
       final UserRole role = await _authService.signIn(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
@@ -82,13 +81,18 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
 
         case UserRole.placementCell:
-          // Placement Cell → Recruiter Dashboard
+          // Placement Cell → Placement Cell Dashboard
           destination = const PlacementCellDashboard();
           break;
 
         case UserRole.student:
           // Student → Student Dashboard
           destination = const StudentDashboard();
+          break;
+
+        case UserRole.recruiter:
+          // Recruiter → Placement Cell Dashboard (same as placement cell for now)
+          destination = const PlacementCellDashboard();
           break;
 
         case UserRole.unknown:
@@ -261,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
 
                 const Text(
-                  "Login to continue your journey",
+                  "Login with your admin-provided credentials",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 15,
@@ -371,37 +375,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 32),
 
-                /// SIGN UP LINK
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Don't have an account? ",
-                      style: TextStyle(
-                        color: Color(0xFF64748B), // Slate 500
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SignupScreen(),
+                /// ADMIN NOTICE
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, color: Color(0xFF3B82F6), size: 18),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          "Need an account? Contact your administrator to create one.",
+                          style: TextStyle(
+                            color: Color(0xFF1D4ED8),
+                            fontSize: 13,
+                            height: 1.4,
                           ),
-                        );
-                      },
-                      child: const Text(
-                        "Sign up",
-                        style: TextStyle(
-                          color: Color(0xFF4F46E5), // Indigo 600
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -411,3 +408,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

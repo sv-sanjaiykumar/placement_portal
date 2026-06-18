@@ -1,19 +1,6 @@
-// ============================================================
-// create_student_screen.dart
-// Allows the Admin to create a new student account.
-//
-// Uses a secondary Firebase App instance so that creating the
-// new user does NOT sign out the currently-logged-in admin.
-//
-// On success, the new student's UID + role are stored in
-// Firestore so they can log in and be redirected correctly.
-// ============================================================
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../firebase_options.dart';
+import '../services/auth_service.dart';
 
 class CreateStudentScreen extends StatefulWidget {
   const CreateStudentScreen({super.key});
@@ -23,27 +10,25 @@ class CreateStudentScreen extends StatefulWidget {
 }
 
 class _CreateStudentScreenState extends State<CreateStudentScreen> {
-  // ── Form key for validation ───────────────────────────────
   final _formKey = GlobalKey<FormState>();
-
-  // ── Text controllers ──────────────────────────────────────
-  final _nameController     = TextEditingController();
-  final _emailController    = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _deptController     = TextEditingController();
+  final _deptController = TextEditingController();
+  final _employeeCodeController = TextEditingController();
 
-  bool _loading       = false;
-  bool _hidePassword  = true;
-  bool _created       = false; // shows success state
+  bool _loading = false;
+  bool _hidePassword = true;
+  bool _created = false;
+  String _selectedRole = 'student';
 
-  // ── Color Palette (Indigo theme for Student) ─────────────
-  static const Color _primary      = Color(0xFF4F46E5); // Indigo 600
-  static const Color _primaryLight = Color(0xFFEEF2FF); // Indigo 50
-  static const Color _slate900     = Color(0xFF0F172A);
-  static const Color _slate500     = Color(0xFF64748B);
-  static const Color _slate200     = Color(0xFFE2E8F0);
-  static const Color _slate100     = Color(0xFFF1F5F9);
-  static const Color _slate50      = Color(0xFFF8FAFC);
+  static const Color _primary = Color(0xFF4F46E5);
+  static const Color _slate900 = Color(0xFF0F172A);
+  static const Color _slate500 = Color(0xFF64748B);
+  static const Color _slate200 = Color(0xFFE2E8F0);
+  static const Color _slate50 = Color(0xFFF8FAFC);
+
+  final AuthService _authService = AuthService();
 
   @override
   void dispose() {
@@ -51,115 +36,84 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _deptController.dispose();
+    _employeeCodeController.dispose();
     super.dispose();
   }
 
-  // ── Create student account ────────────────────────────────
-  // Uses a secondary Firebase App so the admin stays signed in.
-  Future<void> _createStudent() async {
-    if (!_formKey.currentState!.validate()) return;
+  String _getRoleDisplayName(String role) {
+    return role == 'student' ? 'Student' 
+        : role == 'placementCell' ? 'Placement Cell' 
+        : role == 'recruiter' ? 'Recruiter' 
+        : role;
+  }
 
+  Future<void> _createUser() async {
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    FirebaseApp? secondaryApp;
-
     try {
-      // ── Step 1: Spin up a temporary secondary Firebase app ─
-      // This isolates the createUser call from the admin session.
-      secondaryApp = await Firebase.initializeApp(
-        name: 'StudentCreation_${DateTime.now().millisecondsSinceEpoch}',
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-
-      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
-
-      // ── Step 2: Create the Firebase Auth account ───────────
-      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+      await _authService.createUserByAdmin(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        role: _selectedRole,
+        fullName: _nameController.text.trim(),
+        department: _deptController.text.trim(),
+        employeeCode: _employeeCodeController.text.trim().isEmpty
+            ? null
+            : _employeeCodeController.text.trim(),
       );
 
-      final uid = credential.user!.uid;
-
-      // ── Step 3: Store role + profile in Firestore ──────────
-      // auth_service.dart reads this to redirect student correctly.
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'uid':        uid,
-        'name':       _nameController.text.trim(),
-        'email':      _emailController.text.trim().toLowerCase(),
-        'role':       'student',
-        'department': _deptController.text.trim(),
-        'createdAt':  FieldValue.serverTimestamp(),
-        'createdBy':  'admin',
-      });
-
-      // ── Step 4: Sign out from secondary app & clean up ─────
-      await secondaryAuth.signOut();
-
       if (mounted) {
-        setState(() {
-          _loading = true;
-          _created = true;
-        });
-
-        // Brief success pause, then reset form for next entry
+        setState(() => _created = true);
         await Future.delayed(const Duration(seconds: 2));
 
         if (mounted) {
-          setState(() {
-            _loading = false;
-            _created = false;
-            _nameController.clear();
-            _emailController.clear();
-            _passwordController.clear();
-            _deptController.clear();
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Student "${_nameController.text.isEmpty ? "account" : ""}" created successfully!',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16),
-            ),
-          );
+          _clearForm();
+          _showSuccess('${_getRoleDisplayName(_selectedRole)} account created!');
         }
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => _loading = false);
-
-      String msg;
-      switch (e.code) {
-        case 'email-already-in-use':
-          msg = 'This email is already registered.\nUse a different email.';
-          break;
-        case 'weak-password':
-          msg = 'Password must be at least 6 characters long.';
-          break;
-        case 'invalid-email':
-          msg = 'The email address format is invalid.';
-          break;
-        default:
-          msg = e.message ?? 'An error occurred. Please try again.';
-      }
-      _showError('Account Creation Failed', msg);
+      final msg = e.code == 'email-already-in-use'
+          ? 'Email already registered'
+          : e.code == 'weak-password'
+          ? 'Password must be 6+ characters'
+          : e.message ?? 'Error creating account';
+      _showError('Failed', msg);
     } catch (e) {
       if (mounted) setState(() => _loading = false);
-      _showError('Unexpected Error', 'Something went wrong:\n$e');
-    } finally {
-      // Always clean up the secondary app regardless of outcome
-      await secondaryApp?.delete();
+      _showError('Error', e.toString());
     }
+  }
+
+  void _clearForm() {
+    setState(() {
+      _loading = false;
+      _created = false;
+      _nameController.clear();
+      _emailController.clear();
+      _passwordController.clear();
+      _deptController.clear();
+      _employeeCodeController.clear();
+      _selectedRole = 'student';
+    });
+  }
+
+  void _showSuccess(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 18),
+            const SizedBox(width: 10),
+            Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showError(String title, String message) {
@@ -167,23 +121,8 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE2E2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 20),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(color: _slate500, height: 1.5)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(message, style: const TextStyle(color: _slate500)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -194,68 +133,44 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
     );
   }
 
-  // ── Styled input field ────────────────────────────────────
   Widget _buildField({
     required String label,
     required String hint,
     required IconData icon,
     required TextEditingController controller,
     bool isPassword = false,
-    TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: _slate900,
-          ),
-        ),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _slate900)),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           obscureText: isPassword ? _hidePassword : false,
-          keyboardType: keyboardType,
           style: const TextStyle(fontSize: 14, color: _slate900),
           validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-            prefixIcon: Icon(icon, color: const Color(0xFF94A3B8), size: 20),
+            hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+            prefixIcon: Icon(icon, color: const Color(0xFF94A3B8)),
             suffixIcon: isPassword
                 ? IconButton(
-                    icon: Icon(
-                      _hidePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: const Color(0xFF94A3B8),
-                      size: 20,
-                    ),
+                    icon: Icon(_hidePassword ? Icons.visibility_off : Icons.visibility,
+                        color: const Color(0xFF94A3B8)),
                     onPressed: () => setState(() => _hidePassword = !_hidePassword),
                   )
                 : null,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            enabledBorder: OutlineInputBorder(
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: _slate200),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: _primary, width: 1.5),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFEF4444)),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
             ),
           ),
         ),
@@ -272,27 +187,20 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
         backgroundColor: _primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Create Student Account',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
+        title: const Text('Create User Account', style: TextStyle(fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ── Gradient header strip ──────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                   colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
                 ),
                 borderRadius: BorderRadius.only(
@@ -315,31 +223,15 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'New Student',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text('Create New User', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                         SizedBox(height: 4),
-                        Text(
-                          'Fill in the details to create a student login account',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                        ),
+                        Text('Add user with role and credentials', style: TextStyle(color: Colors.white70, fontSize: 13)),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-
-            // ── Form ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -347,8 +239,6 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
-                    // ── Info banner ────────────────────────────
                     Container(
                       padding: const EdgeInsets.all(14),
                       margin: const EdgeInsets.only(bottom: 24),
@@ -359,91 +249,78 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.info_outline_rounded, color: Color(0xFF3B82F6), size: 18),
+                          Icon(Icons.info_outline, color: Color(0xFF3B82F6), size: 18),
                           SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              'The student can use these credentials to log in to the app.',
-                              style: TextStyle(
-                                color: Color(0xFF1D4ED8),
-                                fontSize: 13,
-                                height: 1.4,
-                              ),
-                            ),
+                            child: Text('Users login with these credentials', style: TextStyle(color: Color(0xFF1D4ED8), fontSize: 13)),
                           ),
                         ],
                       ),
                     ),
-
-                    // ── Full Name ──────────────────────────────
+                    Text('User Role', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _slate900)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _slate200),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _selectedRole,
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        items: const [
+                          DropdownMenuItem(value: 'student', child: Text('Student')),
+                          DropdownMenuItem(value: 'placementCell', child: Text('Placement Cell')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedRole = val ?? 'student'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     _buildField(
                       label: 'Full Name',
                       hint: 'e.g. Rahul Sharma',
-                      icon: Icons.person_outline_rounded,
+                      icon: Icons.person_outline,
                       controller: _nameController,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Name is required';
-                        if (v.trim().length < 2) return 'Enter a valid full name';
-                        return null;
-                      },
+                      validator: (v) => v?.isEmpty ?? true ? 'Name required' : null,
                     ),
-
-                    // ── Department ────────────────────────────
                     _buildField(
                       label: 'Department',
                       hint: 'e.g. Computer Science',
                       icon: Icons.school_outlined,
                       controller: _deptController,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Department is required';
-                        return null;
-                      },
+                      validator: (v) => v?.isEmpty ?? true ? 'Department required' : null,
                     ),
-
-                    // ── Email ─────────────────────────────────
+                    _buildField(
+                      label: 'Employee Code (Optional)',
+                      hint: 'e.g. STU001',
+                      icon: Icons.badge_outlined,
+                      controller: _employeeCodeController,
+                    ),
                     _buildField(
                       label: 'Email Address',
-                      hint: 'student@example.com',
+                      hint: 'user@example.com',
                       icon: Icons.email_outlined,
                       controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Email is required';
-                        if (!v.contains('@') || !v.contains('.')) {
-                          return 'Enter a valid email address';
-                        }
-                        return null;
-                      },
+                      validator: (v) => !v!.contains('@') ? 'Valid email required' : null,
                     ),
-
-                    // ── Password ──────────────────────────────
                     _buildField(
                       label: 'Password',
                       hint: 'Minimum 6 characters',
-                      icon: Icons.lock_outline_rounded,
+                      icon: Icons.lock_outline,
                       controller: _passwordController,
                       isPassword: true,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 6) return 'Password must be at least 6 characters';
-                        return null;
-                      },
+                      validator: (v) => (v?.length ?? 0) < 6 ? 'Min 6 characters' : null,
                     ),
-
-                    const SizedBox(height: 8),
-
-                    // ── Submit button ──────────────────────────
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _loading ? null : _createStudent,
+                        onPressed: _loading ? null : _createUser,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _primary,
-                          disabledBackgroundColor: _primary.withOpacity(0.7),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
                         child: _loading
@@ -451,112 +328,64 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   if (_created)
-                                    const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22)
+                                    const Icon(Icons.check_circle, color: Colors.white, size: 22)
                                   else
                                     const SizedBox(
                                       height: 22,
                                       width: 22,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2.5,
-                                      ),
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                     ),
                                   const SizedBox(width: 12),
-                                  Text(
-                                    _created ? 'Account Created!' : 'Creating Account...',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  Text(_created ? 'Created!' : 'Creating...',
+                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                                 ],
                               )
                             : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
+                                  Icon(Icons.person_add, color: Colors.white, size: 20),
                                   SizedBox(width: 10),
-                                  Text(
-                                    'Create Student Account',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  Text('Create Account',
+                                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                       ),
                     ),
-
                     const SizedBox(height: 24),
-
-                    // ── How it works note ─────────────────────
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _slate100),
+                        border: Border.all(color: _slate200),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.lightbulb_outline_rounded, color: Color(0xFFF59E0B), size: 18),
+                              Icon(Icons.security_outlined, color: _primary, size: 18),
                               SizedBox(width: 8),
-                              Text(
-                                'How it works',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: _slate900,
-                                  fontSize: 14,
-                                ),
-                              ),
+                              Text('Security', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _slate900)),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          _buildStep('1', 'Account is created in Firebase Authentication'),
-                          _buildStep('2', 'Student profile & role stored in Firestore'),
-                          _buildStep('3', 'Student logs in using the email & password above'),
-                          _buildStep('4', 'App redirects them to the Student Dashboard'),
+                          const SizedBox(height: 10),
+                          Text(
+                            '• Share credentials securely\n'
+                            '• User can change password on first login\n'
+                            '• Admin can deactivate accounts anytime',
+                            style: TextStyle(fontSize: 12, color: _slate500, height: 1.6),
+                          ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStep(String number, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            margin: const EdgeInsets.only(right: 10, top: 1),
-            decoration: const BoxDecoration(color: _primaryLight, shape: BoxShape.circle),
-            child: Center(
-              child: Text(
-                number,
-                style: const TextStyle(color: _primary, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(text, style: const TextStyle(color: _slate500, fontSize: 13, height: 1.4)),
-          ),
-        ],
       ),
     );
   }
