@@ -61,10 +61,13 @@ class ScheduleTab extends StatelessWidget {
         ),
         const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-        // Main List
+        // Main List - Filtered by postedBy to match security rules
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('applications').snapshots(),
+            stream: FirebaseFirestore.instance
+                .collection('applications')
+                .where('postedBy', isEqualTo: uid)
+                .snapshots(),
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(color: PlacementTheme.primary));

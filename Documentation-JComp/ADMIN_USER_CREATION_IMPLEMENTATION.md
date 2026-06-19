@@ -16,18 +16,14 @@ Updated with new admin-based user creation methods:
 - Updated `signIn()` - Validates users exist in admin_created_users collection
 - Updated `_resolveRoleFromFirestore()` - Checks user active status
 
-**New Role Added:**
-- `UserRole.recruiter` - Third-party recruiter accounts
-
 ### 2. **Login Screen** (`lib/screens/login_screen.dart`) ✅
 - Updated welcome message: "Login with your admin-provided credentials"
 - Removed self-signup link
 - Added admin notice: "Need an account? Contact your administrator"
-- Added support for recruiter role navigation
 - Improved error messages for new system
 
 ### 3. **User Creation Screen** (`lib/screens/create_student_screen.dart`) ✅
-- Renamed functionality to support multiple roles (Student, Placement Cell, Recruiter)
+- Renamed functionality to support multiple roles (Student, Placement Cell)
 - Added role selection dropdown
 - Added employee code field (optional)
 - Now uses `AuthService.createUserByAdmin()` method
@@ -38,7 +34,6 @@ New role-based access control:
 - **Admin**: Can create/update users, view all data
 - **Student**: Can view jobs, apply to jobs, manage own profile
 - **Placement Cell**: Can post jobs, manage applications
-- **Recruiter**: Similar to Placement Cell
 - **Users**: Can only view/update their own data
 
 ## Database Collections Structure
@@ -48,7 +43,7 @@ User accounts with role mapping and metadata:
 ```json
 {
   "email": "user@example.com",
-  "role": "student|placementCell|recruiter|admin",
+  "role": "student|placementCell|admin",
   "fullName": "User Name",
   "department": "CSE",
   "createdAt": timestamp,
@@ -62,7 +57,7 @@ Audit trail of users created by admins:
 ```json
 {
   "email": "user@example.com",
-  "role": "student|placementCell|recruiter",
+  "role": "student|placementCell",
   "fullName": "User Name",
   "department": "CSE",
   "employeeCode": "STU001",
@@ -74,7 +69,6 @@ Audit trail of users created by admins:
 
 ### Other Collections (Unchanged Structure)
 - `students/{studentId}` - Student profiles
-- `recruiters/{recruiterId}` - Recruiter profiles
 - `admins/{adminId}` - Admin profiles
 - `jobs/{jobId}` - Job postings
 - `applications/{applicationId}` - Applications
@@ -137,7 +131,6 @@ If you have existing users:
 
 - [ ] Admin can create student account with all fields
 - [ ] Admin can create placement cell account
-- [ ] Admin can create recruiter account
 - [ ] Created users can login with provided credentials
 - [ ] User roles are correctly resolved and redirect to dashboards
 - [ ] Deactivated users cannot login

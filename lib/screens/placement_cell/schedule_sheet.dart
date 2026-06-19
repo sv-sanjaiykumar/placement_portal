@@ -28,7 +28,7 @@ class _ScheduleInterviewSheetState extends State<ScheduleInterviewSheet> {
     try {
       final appDoc = await FirebaseFirestore.instance.collection('applications').doc(_selectedAppId).get();
       final appData = appDoc.data() as Map<String, dynamic>;
-      final studentId = appData['studentId'];
+      final studentId = appData['studentUid']; // Changed from studentId to studentUid
       final company = appData['company'] ?? 'a company';
 
       await FirebaseFirestore.instance.collection('applications').doc(_selectedAppId).update({
@@ -101,7 +101,11 @@ class _ScheduleInterviewSheetState extends State<ScheduleInterviewSheet> {
           
           if (_selectedJobId != null)
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('applications').where('jobId', isEqualTo: _selectedJobId).snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('applications')
+                  .where('jobId', isEqualTo: _selectedJobId)
+                  .where('postedBy', isEqualTo: widget.placementUid) // Added postedBy filter
+                  .snapshots(),
               builder: (ctx, snap) {
                 if (!snap.hasData) return const LinearProgressIndicator();
                 final docs = snap.data!.docs;

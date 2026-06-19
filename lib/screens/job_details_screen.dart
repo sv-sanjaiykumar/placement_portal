@@ -55,6 +55,7 @@ class JobDetailsScreen extends StatelessWidget {
         'jobId': jobId,
         'jobTitle': job['title'] ?? '',
         'company': job['company'] ?? '',
+        'postedBy': job['postedBy'] ?? '', // Add this for placement cell visibility
         'studentUid': user.uid,
         'studentName': name,
         'studentEmail': email,
@@ -95,7 +96,7 @@ class JobDetailsScreen extends StatelessWidget {
     final type = job['type'] ?? 'Full-time';
     final dept = job['department'] ?? 'Any';
     final cgpa = job['minCgpa'] ?? 'None';
-    final description = job['description'] ?? 'No description provided by the recruiter.';
+    final description = job['description'] ?? 'No description provided.';
     final color = _logoColor(company);
 
     return Scaffold(

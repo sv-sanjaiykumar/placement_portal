@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 
 class CreateStudentScreen extends StatefulWidget {
-  const CreateStudentScreen({super.key});
+  final String initialRole;
+  const CreateStudentScreen({super.key, this.initialRole = 'student'});
 
   @override
   State<CreateStudentScreen> createState() => _CreateStudentScreenState();
@@ -20,7 +21,13 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
   bool _loading = false;
   bool _hidePassword = true;
   bool _created = false;
-  String _selectedRole = 'student';
+  late String _selectedRole;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRole = widget.initialRole;
+  }
 
   static const Color _primary = Color(0xFF4F46E5);
   static const Color _slate900 = Color(0xFF0F172A);
@@ -43,7 +50,6 @@ class _CreateStudentScreenState extends State<CreateStudentScreen> {
   String _getRoleDisplayName(String role) {
     return role == 'student' ? 'Student' 
         : role == 'placementCell' ? 'Placement Cell' 
-        : role == 'recruiter' ? 'Recruiter' 
         : role;
   }
 

@@ -90,11 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
           destination = const StudentDashboard();
           break;
 
-        case UserRole.recruiter:
-          // Recruiter → Placement Cell Dashboard (same as placement cell for now)
-          destination = const PlacementCellDashboard();
-          break;
-
         case UserRole.unknown:
           // Unknown role → show an error; don't navigate
           setState(() => loading = false);

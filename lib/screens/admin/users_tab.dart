@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:placement_portal_app/screens/create_student_screen.dart';
 import 'admin_utils.dart';
 import 'admin_widgets.dart';
 
@@ -7,11 +8,10 @@ class UsersTab extends StatelessWidget {
   const UsersTab({super.key});
 
   void _openCreateStaff(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Staff creation functionality is coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AdminTheme.slate900,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CreateStudentScreen(initialRole: 'placementCell'),
       ),
     );
   }
@@ -46,16 +46,30 @@ class UsersTab extends StatelessWidget {
         List<Widget> studentWidgets = [];
         List<Widget> staffWidgets = [];
 
-        // Add hardcoded users purely for display fallback
-        studentWidgets.add(const AdminUserCard(name: 'Sanjay Kumar (Demo)', email: 'sanjaiy@gmail.com', role: 'Student', roleColor: Color(0xFF4F46E5)));
-        staffWidgets.add(const AdminUserCard(name: 'Placement Cell (Demo)', email: 'company@gmail.com', role: 'Placement Cell', roleColor: Color(0xFF9333EA)));
-        staffWidgets.add(const AdminUserCard(name: 'Admin User (Demo)', email: 'admin@gmail.com', role: 'Admin', roleColor: AdminTheme.primary));
+        if (snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline_rounded, size: 48, color: AdminTheme.slate200),
+                const SizedBox(height: 16),
+                const Text(
+                  'No users found',
+                  style: TextStyle(color: AdminTheme.slate500, fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          );
+        }
 
         for (var doc in snapshot.data!.docs) {
           final data = doc.data() as Map<String, dynamic>;
-          final name = data['name'] ?? 'Unknown User';
+          final name = data['name'] ?? data['fullName'] ?? 'Unknown User';
           final email = data['email'] ?? 'No email';
           final role = data['role'] ?? 'unknown';
+          final isActive = data['isActive'] ?? true;
+
+          if (!isActive) continue; // Optional: Hide inactive users
 
           if (role == 'student') {
             studentWidgets.add(AdminUserCard(name: name, email: email, role: 'Student', roleColor: const Color(0xFF4F46E5)));

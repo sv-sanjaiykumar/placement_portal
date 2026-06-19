@@ -175,17 +175,6 @@ class RoleSelectionScreen extends StatelessWidget {
               ),
 
               _buildRoleCard(
-                icon: Icons.business_center_outlined,
-                title: "Recruiter",
-                subtitle: "Post job opportunities and manage suitable candidates",
-                color: const Color(0xFF9333EA), // Purple 600
-                bgColor: const Color(0xFFFAF5FF), // Purple 50
-                onTap: () {
-                  // Add Recruiter Dashboard Navigation
-                },
-              ),
-
-              _buildRoleCard(
                 icon: Icons.admin_panel_settings_outlined,
                 title: "Administrator",
                 subtitle: "Manage the placement process, roles, and view analytics",

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'placement_utils.dart';
 import 'placement_widgets.dart';
 
@@ -11,8 +12,10 @@ class ApplicantsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     // If a filter is applied, we query for that specific jobId.
-    // Otherwise, we get all applications ordered by appliedAt.
+    // Otherwise, we get all applications for jobs posted by this user.
     Stream<QuerySnapshot> appStream;
     if (jobIdFilter != null) {
       appStream = FirebaseFirestore.instance
@@ -22,7 +25,7 @@ class ApplicantsTab extends StatelessWidget {
     } else {
       appStream = FirebaseFirestore.instance
           .collection('applications')
-          .orderBy('appliedAt', descending: true)
+          .where('postedBy', isEqualTo: uid)
           .snapshots();
     }
 

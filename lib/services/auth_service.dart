@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 enum UserRole { admin, placementCell, student, unknown }
 
@@ -46,39 +47,56 @@ class AuthService {
         throw Exception('Only admins can create users');
       }
 
-      // Step 1: Create Firebase Auth account for the new user
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      // Step 1: Create Firebase Auth account for the new user 
+      // Use a unique secondary app instance to avoid signing out the current admin
+      final String secondaryAppName = 'SecondaryApp_${DateTime.now().millisecondsSinceEpoch}';
+      FirebaseApp secondaryApp = await Firebase.initializeApp(
+        name: secondaryAppName,
+        options: Firebase.app().options,
+      );
+
+      final userCredential = await FirebaseAuth.instanceFor(app: secondaryApp).createUserWithEmailAndPassword(
         email: email.trim().toLowerCase(),
         password: password.trim(),
       );
 
       final newUserId = userCredential.user?.uid;
-      if (newUserId == null) throw Exception('Failed to create user account');
+      if (newUserId == null) {
+        await secondaryApp.delete();
+        throw Exception('Failed to create user account');
+      }
 
       final now = DateTime.now();
 
       // Step 2: Create user document in 'users' collection with role mapping
+      // We use 'name' instead of 'fullName' to match UsersTab expectations
       await _firestore.collection('users').doc(newUserId).set({
         'email': email.trim().toLowerCase(),
         'role': role.trim(),
         'department': department.trim(),
-        'fullName': fullName.trim(),
+        'name': fullName.trim(),
+        'fullName': fullName.trim(), // Keep both for compatibility
         'createdAt': now,
         'createdBy': currentUser.uid,
         'isActive': true,
       });
 
       // Step 3: Create record in 'admin_created_users' for tracking
-      await _firestore.collection('admin_created_users').add({
+      // CRITICAL: Use .doc(newUserId).set() so login discovery can find it
+      await _firestore.collection('admin_created_users').doc(newUserId).set({
         'email': email.trim().toLowerCase(),
         'role': role.trim(),
         'department': department.trim(),
+        'name': fullName.trim(),
         'fullName': fullName.trim(),
         'employeeCode': employeeCode?.trim() ?? '',
         'createdAt': now,
         'createdBy': currentUser.uid,
         'isActive': true,
       });
+
+      // Clean up secondary app AFTER firestore operations
+      await secondaryApp.delete();
 
       return true;
     } catch (e) {
@@ -201,29 +219,7 @@ class AuthService {
     try {
       final normalizedEmail = email.trim().toLowerCase();
 
-      // Step 1: Verify user exists in admin_created_users
-      final createdUserSnapshot = await _firestore
-          .collection('admin_created_users')
-          .where('email', isEqualTo: normalizedEmail)
-          .limit(1)
-          .get();
-
-      if (createdUserSnapshot.docs.isEmpty) {
-        throw FirebaseAuthException(
-          code: 'user-not-found',
-          message: 'Your account was not created by an administrator. Please contact support.',
-        );
-      }
-
-      final createdUserData = createdUserSnapshot.docs.first.data();
-      if (createdUserData['isActive'] != true) {
-        throw FirebaseAuthException(
-          code: 'user-disabled',
-          message: 'Your account has been deactivated. Please contact an administrator.',
-        );
-      }
-
-      // Step 2: Authenticate with Firebase Auth
+      // 1. Authenticate FIRST to satisfy security rules
       final credential = await _auth.signInWithEmailAndPassword(
         email: normalizedEmail,
         password: password.trim(),
@@ -232,22 +228,43 @@ class AuthService {
       final user = credential.user;
       if (user == null) return UserRole.unknown;
 
-      // Step 3: Resolve and return user role
-      try {
-        return await _resolveRoleFromFirestore(
-          uid: user.uid,
-          email: normalizedEmail,
+      // 2. Direct fetch by ID (matches the "match /admin_created_users/{docId}" rule)
+      final createdUserDoc = await _firestore
+          .collection('admin_created_users')
+          .doc(user.uid)
+          .get();
+
+      if (!createdUserDoc.exists) {
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'Your account was not authorized by an administrator.',
         );
-      } catch (_) {
-        return UserRole.unknown;
       }
+
+      final createdUserData = createdUserDoc.data();
+      // Robust check: Only block if isActive is EXPLICITLY false
+      if (createdUserData?['isActive'] == false) {
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'user-disabled',
+          message: 'Your account has been deactivated.',
+        );
+      }
+
+      // 3. Resolve role
+      return await _resolveRoleFromFirestore(
+        uid: user.uid,
+        email: normalizedEmail,
+      );
     } on FirebaseAuthException {
       rethrow;
     } catch (e) {
-      print('Unexpected error during login: $e');
+      // If Firestore fails here, it's a permission issue
+      print('Login Error: $e');
       throw FirebaseAuthException(
-        code: 'internal-error',
-        message: 'An unexpected error occurred. Please try again.',
+        code: 'permission-denied',
+        message: 'Access denied. Please check your admin status.',
       );
     }
   }
