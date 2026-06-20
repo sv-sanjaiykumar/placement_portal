@@ -250,7 +250,7 @@ PlacementHub follows a **Secure-by-Default** approach.
 
 **Sanjaiykumar S V**
 
-Flutter Developer | Firebase Enthusiast | Mobile App Developer
+Flutter Developer | Firebase | Mobile App Developer
 
 * Flutter
 * Firebase
@@ -259,9 +259,3 @@ Flutter Developer | Firebase Enthusiast | Mobile App Developer
 * REST API Integration
 
 ---
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-Feel free to fork, contribute, and enhance the project.
