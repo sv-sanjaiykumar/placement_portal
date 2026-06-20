@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Documentaion
+/Documentation-JComp/FIRESTORE_RULES_UPDATED.md
+/Documentation-JComp/ADMIN_USER_CREATION_IMPLEMENTATION.md
